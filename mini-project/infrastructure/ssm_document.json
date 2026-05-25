@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "2.2",
+  "description": "Restart the web application service on Elastic Beanstalk instances. Run this document via SSM Run Command to restart the app on ALL instances at the same time — no SSH needed.",
+
+  "parameters": {
+    "ServiceName": {
+      "type": "String",
+      "default": "web",
+      "description": "The systemd service name to restart. Elastic Beanstalk names the Python app service 'web' by default.",
+      "allowedPattern": "^[a-zA-Z0-9_\\-]+$"
+    }
+  },
+
+  "mainSteps": [
+    {
+      "action": "aws:runShellScript",
+      "name": "RestartWebService",
+      "inputs": {
+        "timeoutSeconds": "60",
+        "runCommand": [
+          "#!/bin/bash",
+          "set -euo pipefail",
+          "",
+          "SERVICE='{{ ServiceName }}'",
+          "echo \"[$(date -u)] Restarting service: ${SERVICE}\"",
+          "",
+          "systemctl restart \"${SERVICE}\"",
+          "sleep 3",
+          "",
+          "if systemctl is-active --quiet \"${SERVICE}\"; then",
+          "  echo \"[$(date -u)] SUCCESS — ${SERVICE} is running.\"",
+          "  exit 0",
+          "else",
+          "  echo \"[$(date -u)] FAILED — ${SERVICE} did not come back up.\"",
+          "  systemctl status \"${SERVICE}\" --no-pager || true",
+          "  exit 1",
+          "fi"
+        ]
+      }
+    }
+  ]
+}

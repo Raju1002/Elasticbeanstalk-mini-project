@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zero-SSH Architecture — Micro Degree Workshop</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f1f5f9;
+    min-height: 100vh;
+    padding: 40px 20px;
+  }
+
+  .page-title {
+    text-align: center;
+    margin-bottom: 8px;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #1e293b;
+  }
+  .page-sub {
+    text-align: center;
+    font-size: 0.85rem;
+    color: #64748b;
+    margin-bottom: 36px;
+  }
+
+  /* Main canvas */
+  .canvas {
+    max-width: 1100px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  /* AWS Region boundary */
+  .aws-region {
+    border: 2px dashed #f59e0b;
+    border-radius: 16px;
+    padding: 28px;
+    position: relative;
+    background: #fffbeb;
+  }
+  .aws-region-label {
+    position: absolute;
+    top: -13px;
+    left: 20px;
+    background: #f59e0b;
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 12px;
+    border-radius: 10px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  /* VPC boundary */
+  .vpc {
+    border: 2px dashed #6366f1;
+    border-radius: 12px;
+    padding: 24px;
+    position: relative;
+    background: #eef2ff;
+    margin-bottom: 20px;
+  }
+  .vpc-label {
+    position: absolute;
+    top: -12px;
+    left: 16px;
+    background: #6366f1;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Row layouts */
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 0;
+  }
+  .row-gap { margin-bottom: 20px; }
+
+  /* Arrow */
+  .arrow-down {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 6px 0;
+  }
+  .arrow-down .line {
+    width: 2px;
+    height: 28px;
+    background: #94a3b8;
+  }
+  .arrow-down .head {
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid #94a3b8;
+  }
+  .arrow-down .label {
+    font-size: 0.65rem;
+    color: #64748b;
+    margin-top: 2px;
+    white-space: nowrap;
+  }
+
+  .arrow-right {
+    display: flex;
+    align-items: center;
+    margin: 0 4px;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .arrow-right .h-line {
+    display: flex;
+    align-items: center;
+  }
+  .arrow-right .line {
+    height: 2px;
+    width: 36px;
+    background: #94a3b8;
+  }
+  .arrow-right .head {
+    width: 0;
+    height: 0;
+    border-top: 6px solid transparent;
+    border-bottom: 6px solid transparent;
+    border-left: 8px solid #94a3b8;
+  }
+  .arrow-right .label {
+    font-size: 0.62rem;
+    color: #64748b;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  /* AWS Service Node */
+  .node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    cursor: default;
+  }
+  .node-box {
+    width: 90px;
+    height: 90px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    transition: transform 0.2s, box-shadow 0.2s;
+    position: relative;
+  }
+  .node-box:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.18);
+  }
+  .node-box svg, .node-box img {
+    width: 52px;
+    height: 52px;
+  }
+  .node-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #1e293b;
+    text-align: center;
+    max-width: 90px;
+    line-height: 1.3;
+  }
+  .node-sublabel {
+    font-size: 0.62rem;
+    color: #64748b;
+    text-align: center;
+    max-width: 90px;
+    line-height: 1.3;
+    margin-top: -4px;
+  }
+
+  /* Color themes per service */
+  .color-orange  { background: linear-gradient(135deg, #ff9900, #ffb84d); }
+  .color-blue    { background: linear-gradient(135deg, #1a73e8, #4da6ff); }
+  .color-green   { background: linear-gradient(135deg, #1a9c3e, #34d399); }
+  .color-purple  { background: linear-gradient(135deg, #7c3aed, #a78bfa); }
+  .color-teal    { background: linear-gradient(135deg, #0891b2, #22d3ee); }
+  .color-red     { background: linear-gradient(135deg, #dc2626, #f87171); }
+  .color-indigo  { background: linear-gradient(135deg, #4338ca, #818cf8); }
+  .color-pink    { background: linear-gradient(135deg, #db2777, #f472b6); }
+  .color-gray    { background: linear-gradient(135deg, #475569, #94a3b8); }
+  .color-yellow  { background: linear-gradient(135deg, #d97706, #fbbf24); }
+
+  /* Internet user */
+  .internet-row {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 6px;
+  }
+
+  /* SSM services row outside VPC */
+  .ssm-row {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    margin-top: 20px;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    margin-top: 24px;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.75rem;
+    color: #475569;
+  }
+  .legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+  }
+
+  /* Bidirectional arrow */
+  .arrow-bi {
+    display: flex;
+    align-items: center;
+    margin: 0 4px;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .arrow-bi .h-line {
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+  .arrow-bi .head-l {
+    width: 0; height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-right: 7px solid #94a3b8;
+  }
+  .arrow-bi .line { height: 2px; width: 28px; background: #94a3b8; }
+  .arrow-bi .head-r {
+    width: 0; height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 7px solid #94a3b8;
+  }
+  .arrow-bi .label { font-size: 0.62rem; color: #64748b; white-space: nowrap; text-align: center; }
+
+  /* EB box */
+  .eb-box {
+    border: 2px solid #22c55e;
+    border-radius: 12px;
+    padding: 16px 20px;
+    background: #f0fdf4;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .eb-box-label {
+    position: absolute;
+    top: -12px;
+    left: 12px;
+    background: #22c55e;
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .eb-inner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Security group badge */
+  .sg-badge {
+    font-size: 0.6rem;
+    background: #fee2e2;
+    color: #dc2626;
+    border: 1px solid #fca5a5;
+    border-radius: 6px;
+    padding: 2px 6px;
+    font-weight: 600;
+    margin-top: 2px;
+  }
+  .sg-badge-green {
+    background: #dcfce7;
+    color: #16a34a;
+    border-color: #86efac;
+  }
+
+  /* Flow numbers */
+  .flow-num {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 20px;
+    height: 20px;
+    background: #1e293b;
+    color: #fff;
+    border-radius: 50%;
+    font-size: 0.65rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Dashed connector for SSM */
+  .ssm-connector {
+    border-top: 2px dashed #7c3aed;
+    width: 60px;
+    margin: 0 -10px;
+    align-self: center;
+    position: relative;
+    top: -45px;
+  }
+</style>
+</head>
+<body>
+
+<h1 class="page-title">Zero-SSH Infrastructure — Architecture Diagram</h1>
+<p class="page-sub">Micro Degree Workshop Registration App · AWS eu-north-1 (Stockholm)</p>
+
+<div class="canvas">
+<div class="aws-region">
+  <div class="aws-region-label">☁️ AWS Region — eu-north-1 (Stockholm)</div>
+
+  <!-- Internet User -->
+  <div class="internet-row">
+    <div class="node">
+      <div class="node-box color-gray">
+        <!-- User icon -->
+        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="32" cy="20" r="12" fill="white" opacity="0.9"/>
+          <path d="M8 56c0-13.255 10.745-24 24-24s24 10.745 24 24" stroke="white" stroke-width="4" stroke-linecap="round" fill="none" opacity="0.9"/>
+        </svg>
+      </div>
+      <div class="node-label">End User</div>
+      <div class="node-sublabel">Browser / Mobile</div>
+    </div>
+  </div>
+
+  <!-- Arrow down: Internet → ALB -->
+  <div class="arrow-down" style="align-items:center">
+    <div class="line"></div>
+    <div class="head"></div>
+    <div class="label">HTTP port 80</div>
+  </div>
+
+  <!-- VPC -->
+  <div class="vpc">
+    <div class="vpc-label">🔷 Default VPC</div>
+
+    <!-- ALB -->
+    <div style="display:flex;justify-content:center;margin-bottom:6px">
+      <div class="node">
+        <div class="node-box color-orange" style="position:relative">
+          <div class="flow-num">1</div>
+          <!-- ALB icon -->
+          <svg viewBox="0 0 64 64" fill="white" xmlns="http://www.w3.org/2000/svg">
+            <rect x="8" y="28" width="48" height="8" rx="4" fill="white" opacity="0.9"/>
+            <rect x="8" y="14" width="48" height="8" rx="4" fill="white" opacity="0.6"/>
+            <rect x="8" y="42" width="48" height="8" rx="4" fill="white" opacity="0.6"/>
+            <circle cx="20" cy="32" r="4" fill="#ff9900"/>
+            <circle cx="44" cy="32" r="4" fill="#ff9900"/>
+          </svg>
+        </div>
+        <div class="node-label">Application<br>Load Balancer</div>
+        <div class="node-sublabel">ALB · port 80</div>
+      </div>
+    </div>
+
+    <!-- Arrow ALB → EB -->
+    <div class="arrow-down" style="align-items:center">
+      <div class="line"></div>
+      <div class="head"></div>
+      <div class="label">Routes traffic</div>
+    </div>
+
+    <!-- EB Environment box -->
+    <div style="display:flex;justify-content:center;margin-bottom:6px">
+      <div class="eb-box">
+        <div class="eb-box-label">🌿 Elastic Beanstalk — myapp-prod</div>
+        <div class="eb-inner">
+
+          <!-- EC2 Instance -->
+          <div class="node">
+            <div class="node-box color-orange" style="position:relative">
+              <div class="flow-num">2</div>
+              <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="10" y="10" width="44" height="44" rx="6" fill="white" opacity="0.9"/>
+                <rect x="18" y="18" width="28" height="20" rx="3" fill="#ff9900"/>
+                <rect x="18" y="42" width="8" height="4" rx="2" fill="white" opacity="0.7"/>
+                <rect x="28" y="42" width="8" height="4" rx="2" fill="white" opacity="0.7"/>
+                <rect x="38" y="42" width="8" height="4" rx="2" fill="white" opacity="0.7"/>
+              </svg>
+            </div>
+            <div class="node-label">EC2 Instance</div>
+            <div class="node-sublabel">t3.small · AL2023</div>
+            <div class="sg-badge">Port 22 CLOSED</div>
+          </div>
+
+          <!-- Arrow right: EC2 → Flask -->
+          <div class="arrow-right">
+            <div class="h-line">
+              <div class="line"></div>
+              <div class="head"></div>
+            </div>
+            <div class="label">runs</div>
+          </div>
+
+          <!-- Flask App -->
+          <div class="node">
+            <div class="node-box color-green" style="position:relative">
+              <div class="flow-num">3</div>
+              <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="32" cy="32" r="22" fill="white" opacity="0.9"/>
+                <text x="32" y="38" text-anchor="middle" font-size="18" font-weight="bold" fill="#1a9c3e">🐍</text>
+              </svg>
+            </div>
+            <div class="node-label">Flask App</div>
+            <div class="node-sublabel">gunicorn · pg8000</div>
+          </div>
+
+          <!-- Arrow right: Flask → SSM Agent -->
+          <div class="arrow-right">
+            <div class="h-line">
+              <div class="line"></div>
+              <div class="head"></div>
+            </div>
+            <div class="label">HTTPS</div>
+          </div>
+
+          <!-- SSM Agent -->
+          <div class="node">
+            <div class="node-box color-purple">
+              <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="12" y="12" width="40" height="40" rx="8" fill="white" opacity="0.9"/>
+                <path d="M22 32h20M32 22v20" stroke="#7c3aed" stroke-width="4" stroke-linecap="round"/>
+                <circle cx="32" cy="32" r="6" fill="#7c3aed" opacity="0.3"/>
+              </svg>
+            </div>
+            <div class="node-label">SSM Agent</div>
+            <div class="node-sublabel">Pre-installed</div>
+          </div>
+
+        </div>
+        <div style="font-size:0.68rem;color:#16a34a;font-weight:600;margin-top:4px">
+          🔄 Immutable Deployment Policy · Auto Scaling (min:1 max:4)
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrow EB → RDS -->
+    <div class="arrow-down" style="align-items:center">
+      <div class="line"></div>
+      <div class="head"></div>
+      <div class="label">TCP port 5432 (same VPC)</div>
+    </div>
+
+    <!-- RDS -->
+    <div style="display:flex;justify-content:center">
+      <div class="node">
+        <div class="node-box color-blue" style="position:relative">
+          <div class="flow-num">4</div>
+          <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <ellipse cx="32" cy="18" rx="20" ry="8" fill="white" opacity="0.9"/>
+            <rect x="12" y="18" width="40" height="28" fill="white" opacity="0.15"/>
+            <ellipse cx="32" cy="46" rx="20" ry="8" fill="white" opacity="0.7"/>
+            <line x1="12" y1="28" x2="52" y2="28" stroke="white" stroke-width="1.5" opacity="0.5"/>
+            <line x1="12" y1="37" x2="52" y2="37" stroke="white" stroke-width="1.5" opacity="0.5"/>
+          </svg>
+        </div>
+        <div class="node-label">RDS PostgreSQL</div>
+        <div class="node-sublabel">mydatabase · db.t3.micro</div>
+        <div class="sg-badge sg-green">myapp-rds-sg</div>
+      </div>
+    </div>
+
+  </div><!-- end VPC -->
+
+  <!-- SSM Services row (outside VPC, inside region) -->
+  <div class="ssm-row">
+
+    <!-- SSM Parameter Store -->
+    <div class="node">
+      <div class="node-box color-purple" style="position:relative">
+        <div class="flow-num">5</div>
+        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="44" height="44" rx="8" fill="white" opacity="0.9"/>
+          <rect x="18" y="20" width="28" height="4" rx="2" fill="#7c3aed"/>
+          <rect x="18" y="28" width="20" height="4" rx="2" fill="#7c3aed" opacity="0.6"/>
+          <rect x="18" y="36" width="24" height="4" rx="2" fill="#7c3aed" opacity="0.4"/>
+          <circle cx="46" cy="44" r="8" fill="#fbbf24"/>
+          <path d="M43 44l2 2 4-4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="node-label">SSM Parameter<br>Store</div>
+      <div class="node-sublabel">7 params · KMS encrypted</div>
+    </div>
+
+    <!-- Session Manager -->
+    <div class="node">
+      <div class="node-box color-teal">
+        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="8" y="14" width="48" height="36" rx="6" fill="white" opacity="0.9"/>
+          <rect x="14" y="20" width="36" height="24" rx="3" fill="#0891b2"/>
+          <path d="M20 32l6-4v8l-6-4z" fill="white"/>
+          <rect x="30" y="30" width="14" height="3" rx="1.5" fill="white" opacity="0.7"/>
+          <rect x="30" y="35" width="10" height="3" rx="1.5" fill="white" opacity="0.5"/>
+        </svg>
+      </div>
+      <div class="node-label">Session Manager</div>
+      <div class="node-sublabel">No SSH · Port 22 closed</div>
+    </div>
+
+    <!-- Run Command -->
+    <div class="node">
+      <div class="node-box color-indigo">
+        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="8" y="14" width="48" height="36" rx="6" fill="white" opacity="0.9"/>
+          <rect x="14" y="20" width="36" height="24" rx="3" fill="#4338ca"/>
+          <path d="M20 28l5 4-5 4" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="28" y="31" width="16" height="2.5" rx="1.25" fill="white" opacity="0.8"/>
+        </svg>
+      </div>
+      <div class="node-label">Run Command</div>
+      <div class="node-sublabel">Restart all instances</div>
+    </div>
+
+    <!-- IAM -->
+    <div class="node">
+      <div class="node-box color-red">
+        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="32" cy="24" r="10" fill="white" opacity="0.9"/>
+          <path d="M14 52c0-9.941 8.059-18 18-18s18 8.059 18 18" stroke="white" stroke-width="4" stroke-linecap="round" fill="none" opacity="0.9"/>
+          <path d="M26 24l3 3 6-6" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="node-label">IAM Role</div>
+      <div class="node-sublabel">myapp-eb-ec2-role</div>
+    </div>
+
+    <!-- SendGrid -->
+    <div class="node">
+      <div class="node-box color-pink">
+        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="8" y="18" width="48" height="32" rx="6" fill="white" opacity="0.9"/>
+          <path d="M8 24l24 16 24-16" stroke="#db2777" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+      </div>
+      <div class="node-label">SendGrid</div>
+      <div class="node-sublabel">Confirmation email</div>
+    </div>
+
+  </div><!-- end ssm-row -->
+
+</div><!-- end aws-region -->
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> AWS Region boundary</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#6366f1"></div> VPC boundary</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div> Elastic Beanstalk environment</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#94a3b8"></div> Data / traffic flow</div>
+  <div class="legend-item">🔒 KMS encrypted</div>
+  <div class="legend-item">🚫 Port 22 closed — Zero SSH</div>
+</div>
+
+<!-- Flow explanation -->
+<div style="max-width:1100px;margin:24px auto 0;background:#fff;border-radius:14px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
+  <h3 style="font-size:0.9rem;font-weight:700;color:#1e293b;margin-bottom:16px">📋 Request Flow — Numbers on diagram</h3>
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px">
+    <div style="font-size:0.78rem;color:#475569;line-height:1.6">
+      <strong style="color:#1e293b">① ALB</strong><br>
+      Receives HTTP request from user browser. Routes to healthy EC2 instance.
+    </div>
+    <div style="font-size:0.78rem;color:#475569;line-height:1.6">
+      <strong style="color:#1e293b">② EC2</strong><br>
+      Instance launched by EB with Immutable policy. Port 22 closed. SSM Agent running.
+    </div>
+    <div style="font-size:0.78rem;color:#475569;line-height:1.6">
+      <strong style="color:#1e293b">③ Flask App</strong><br>
+      At startup reads 7 SSM params via IAM role. Assembles DB URL in memory. Never stores secrets.
+    </div>
+    <div style="font-size:0.78rem;color:#475569;line-height:1.6">
+      <strong style="color:#1e293b">④ RDS</strong><br>
+      PostgreSQL inside same VPC. Accepts connections only from EB security group on port 5432.
+    </div>
+    <div style="font-size:0.78rem;color:#475569;line-height:1.6">
+      <strong style="color:#1e293b">⑤ SSM Store</strong><br>
+      Holds all secrets encrypted with KMS. Only EC2 IAM role can read /myapp/* parameters.
+    </div>
+  </div>
+</div>
+
+</div><!-- end canvas -->
+</body>
+</html>

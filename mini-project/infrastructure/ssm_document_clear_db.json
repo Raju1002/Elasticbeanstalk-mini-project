@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "2.2",
+  "description": "Clears all entries from the registrations table in RDS and resets the ID counter back to 1. Reads DB credentials from SSM Parameter Store — no hardcoded passwords.",
+
+  "parameters": {
+    "AppEnv": {
+      "type": "String",
+      "default": "prod",
+      "description": "The app environment — determines which SSM parameter path to use (/myapp/<env>/)",
+      "allowedValues": ["prod", "staging", "dev"]
+    },
+    "AwsRegion": {
+      "type": "String",
+      "default": "eu-north-1",
+      "description": "AWS region where SSM parameters are stored"
+    }
+  },
+
+  "mainSteps": [
+    {
+      "action": "aws:runShellScript",
+      "name": "ClearRegistrationsTable",
+      "inputs": {
+        "timeoutSeconds": "60",
+        "runCommand": [
+          "#!/bin/bash",
+          "set -euo pipefail",
+          "",
+          "ENV='{{ AppEnv }}'",
+          "REGION='{{ AwsRegion }}'",
+          "PREFIX=\"/myapp/${ENV}\"",
+          "",
+          "echo \"[$(date -u)] Starting DB clear operation...\"",
+          "echo \"[$(date -u)] Reading DB credentials from SSM prefix: ${PREFIX}\"",
+          "",
+          "# Read DB credentials from SSM Parameter Store",
+          "# No passwords hardcoded — all read from SSM using the instance IAM role",
+          "DB_HOST=$(aws ssm get-parameter --name \"${PREFIX}/db_host\" --region \"${REGION}\" --query 'Parameter.Value' --output text)",
+          "DB_PORT=$(aws ssm get-parameter --name \"${PREFIX}/db_port\" --region \"${REGION}\" --query 'Parameter.Value' --output text)",
+          "DB_NAME=$(aws ssm get-parameter --name \"${PREFIX}/db_name\" --region \"${REGION}\" --query 'Parameter.Value' --output text)",
+          "DB_USER=$(aws ssm get-parameter --name \"${PREFIX}/db_user\" --region \"${REGION}\" --query 'Parameter.Value' --output text)",
+          "DB_PASS=$(aws ssm get-parameter --name \"${PREFIX}/db_password\" --with-decryption --region \"${REGION}\" --query 'Parameter.Value' --output text)",
+          "",
+          "echo \"[$(date -u)] Credentials loaded from SSM.\"",
+          "echo \"[$(date -u)] DB Host : ${DB_HOST}\"",
+          "echo \"[$(date -u)] DB Name : ${DB_NAME}\"",
+          "echo \"[$(date -u)] DB User : ${DB_USER}\"",
+          "",
+          "# Use the app's virtual environment Python + pg8000 to run the query",
+          "PYTHON=/var/app/venv/staging-LQM1lest/bin/python",
+          "",
+          "/var/app/venv/staging-LQM1lest/bin/python -c \"",
+          "import pg8000.native",
+          "conn = pg8000.native.Connection(",
+          "    host='${DB_HOST}',",
+          "    port=int('${DB_PORT}'),",
+          "    database='${DB_NAME}',",
+          "    user='${DB_USER}',",
+          "    password='${DB_PASS}'",
+          ")",
+          "result = conn.run('SELECT COUNT(*) FROM registrations')",
+          "count_before = result[0][0]",
+          "print(f'Rows before clear: {count_before}')",
+          "conn.run('TRUNCATE TABLE registrations RESTART IDENTITY')",
+          "result = conn.run('SELECT COUNT(*) FROM registrations')",
+          "count_after = result[0][0]",
+          "print(f'Rows after clear : {count_after}')",
+          "conn.close()",
+          "print('SUCCESS — registrations table cleared and ID counter reset to 1')",
+          "\"",
+          "",
+          "echo \"[$(date -u)] DB clear operation completed successfully.\""
+        ]
+      }
+    }
+  ]
+}
